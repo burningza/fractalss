@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Fractal Explorer</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="container">
+        <canvas id="fractal-canvas"></canvas>
+
+        <div id="info-panel" class="panel">
+            <h2 id="fractal-name">Fractal Explorer</h2>
+            <div id="math-info">
+                <p>Select a fractal to see mathematical information.</p>
+            </div>
+        </div>
+
+        <div id="controls-panel" class="panel">
+            <h3>Parameters</h3>
+
+            <div class="control-group">
+                <label for="fractal-type">Fractal Type:</label>
+                <select id="fractal-type">
+                    <option value="mandelbulb">Mandelbulb</option>
+                    <option value="julia">Julia Set</option>
+                    <option value="menger">Menger Sponge</option>
+                    <option value="sierpinski">Sierpinski Tetrahedron</option>
+                    <option value="pickover">Pickover Fractal</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="iterations">Iterations: <span id="iter-val">8</span></label>
+                <input type="range" id="iterations" min="3" max="15" value="8">
+            </div>
+
+            <div class="control-group">
+                <label for="zoom">Zoom: <span id="zoom-val">2.0</span></label>
+                <input type="range" id="zoom" min="0.5" max="5" step="0.1" value="2.0">
+            </div>
+
+            <div class="control-group">
+                <label for="color-scheme">Color Scheme:</label>
+                <select id="color-scheme">
+                    <option value="classic">Classic</option>
+                    <option value="fire">Fire</option>
+                    <option value="ocean">Ocean</option>
+                    <option value="neon">Neon</option>
+                </select>
+            </div>
+
+            <div class="control-group julia-controls" style="display: none;">
+                <label for="julia-x">Julia X: <span id="julia-x-val">0.3</span></label>
+                <input type="range" id="julia-x" min="-1" max="1" step="0.01" value="0.3">
+
+                <label for="julia-y">Julia Y: <span id="julia-y-val">0.5</span></label>
+                <input type="range" id="julia-y" min="-1" max="1" step="0.01" value="0.5">
+            </div>
+
+            <div class="control-group pickover-controls" style="display: none;">
+                <label for="pickover-a">Input A: <span id="pickover-a-val">1.0</span></label>
+                <input type="range" id="pickover-a" min="-3" max="3" step="0.01" value="1.0">
+
+                <label for="pickover-b">Input B: <span id="pickover-b-val">1.8</span></label>
+                <input type="range" id="pickover-b" min="-3" max="3" step="0.01" value="1.8">
+
+                <label for="pickover-c">Input C: <span id="pickover-c-val">0.7</span></label>
+                <input type="range" id="pickover-c" min="-3" max="3" step="0.01" value="0.7">
+
+                <label for="pickover-d">Input D: <span id="pickover-d-val">1.2</span></label>
+                <input type="range" id="pickover-d" min="-3" max="3" step="0.01" value="1.2">
+
+                <label for="pickover-scale">Scale: <span id="pickover-scale-val">1.0</span></label>
+                <input type="range" id="pickover-scale" min="0.1" max="10.0" step="0.1" value="1.0">
+            </div>
+
+            <div class="control-group power-controls">
+                <label for="power">Power: <span id="power-val">8</span></label>
+                <input type="range" id="power" min="2" max="10" step="1" value="8">
+            </div>
+
+            <div class="control-group">
+                <label for="rotation-speed">Rotation Speed: <span id="rotation-val">0.3</span></label>
+                <input type="range" id="rotation-speed" min="0" max="2" step="0.1" value="0.3">
+            </div>
+
+            <button id="reset-params">Reset Parameters</button>
+        </div>
+    </div>
+
+    <!-- Three.js from CDN -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+    <script type="module" src="fractal-viewer.js"></script>
+</body>
+</html>
