@@ -14,12 +14,15 @@ const state = {
     power: 8,
     rotationSpeed: 0.3,
     time: 0,
-    // Pickover parameters
-    pickoverA: 1.0,
-    pickoverB: 1.8,
-    pickoverC: 0.7,
-    pickoverD: 1.2,
-    pickoverScale: 1.0,
+    // Attractor parameters
+    attractorA: 1.0,
+    attractorB: 1.8,
+    attractorC: 0.7,
+    attractorD: 1.2,
+    attractorScale: 1.0,
+    lorenzSigma: 10.0,
+    lorenzRho: 28.0,
+    lorenzBeta: 2.67,
     is3D: true
 };
 
@@ -29,7 +32,10 @@ const fractalTypeMap = {
     'julia': 1,
     'menger': 2,
     'sierpinski': 3,
-    'pickover': 4
+    'pickover': 4,
+    'dejong': 5,
+    'tinkerbell': 6,
+    'lorenz': 7
 };
 
 // Map color schemes to shader integers
@@ -392,12 +398,48 @@ const pickoverColors = new Float32Array(pickoverCount * 3);
 pickoverGeometry.setAttribute('position', new THREE.BufferAttribute(pickoverPositions, 3));
 pickoverGeometry.setAttribute('color', new THREE.BufferAttribute(pickoverColors, 3));
 
+// Particle shapes using canvas
+function createParticleTexture(shape) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    
+    ctx.fillStyle = 'white';
+    ctx.clearRect(0, 0, 64, 64);
+    
+    if (shape === 'circle') {
+        ctx.beginPath();
+        ctx.arc(32, 32, 32, 0, Math.PI * 2);
+        ctx.fill();
+    } else if (shape === 'diamond') {
+        ctx.beginPath();
+        ctx.moveTo(32, 0);
+        ctx.lineTo(64, 32);
+        ctx.lineTo(32, 64);
+        ctx.lineTo(0, 32);
+        ctx.fill();
+    } else { // square
+        ctx.fillRect(0, 0, 64, 64);
+    }
+    
+    return new THREE.CanvasTexture(canvas);
+}
+
+const particleTextures = {
+    square: createParticleTexture('square'),
+    circle: createParticleTexture('circle'),
+    diamond: createParticleTexture('diamond')
+};
+
 const pickoverMaterial = new THREE.PointsMaterial({
     size: 0.015,
     vertexColors: true,
     transparent: true,
     opacity: 0.8,
-    blending: THREE.AdditiveBlending
+    blending: THREE.AdditiveBlending,
+    map: particleTextures.square,
+    alphaTest: 0.1
 });
 
 const pickoverPoints = new THREE.Points(pickoverGeometry, pickoverMaterial);
@@ -409,32 +451,72 @@ fractalMesh.add(quad);
 fractalMesh.add(pickoverPoints);
 scene.add(fractalMesh);
 
-function updatePickoverPoints() {
-    let x = 0.1, y = 0.1, z = 0.1;
-    const a = state.pickoverA;
-    const b = state.pickoverB;
-    const c = state.pickoverC;
-    const d = state.pickoverD;
-    const s = state.pickoverScale;
+function updateAttractorPoints() {
+    let x, y, z;
+    const s = state.attractorScale;
 
     const posAttr = pickoverGeometry.attributes.position.array;
     const colAttr = pickoverGeometry.attributes.color.array;
 
-    for (let i = 0; i < pickoverCount; i++) {
-        const hx = Math.sin(a * y) - (state.is3D ? z * Math.cos(b * x) : Math.cos(b * x));
-        const hy = (state.is3D ? z * Math.sin(c * x) : Math.sin(c * x)) - Math.cos(d * y);
-        const hz = state.is3D ? Math.sin(x) : 0;
+    if (state.fractalType === 'lorenz') {
+        x = 0.1; y = 0; z = 0;
+        const dt = 0.01;
+        const sigma = state.lorenzSigma;
+        const rho = state.lorenzRho;
+        const beta = state.lorenzBeta;
 
-        x = hx; y = hy; z = hz;
+        for (let i = 0; i < pickoverCount; i++) {
+            const dx = sigma * (y - x) * dt;
+            const dy = (x * (rho - z) - y) * dt;
+            const dz = (x * y - beta * z) * dt;
 
-        posAttr[i * 3] = x * s;
-        posAttr[i * 3 + 1] = y * s;
-        posAttr[i * 3 + 2] = z * s;
+            x += dx; y += dy; z += dz;
 
-        // Color based on velocity/position
-        colAttr[i * 3] = Math.abs(x) / 2.0 + 0.5;
-        colAttr[i * 3 + 1] = Math.abs(y) / 2.0 + 0.5;
-        colAttr[i * 3 + 2] = Math.abs(z) / 2.0 + 0.5;
+            posAttr[i * 3] = x * s;
+            posAttr[i * 3 + 1] = y * s;
+            posAttr[i * 3 + 2] = (z - 25) * s; 
+
+            colAttr[i * 3] = Math.abs(x) / 20.0 + 0.5;
+            colAttr[i * 3 + 1] = Math.abs(y) / 20.0 + 0.5;
+            colAttr[i * 3 + 2] = Math.abs(z - 25) / 20.0 + 0.5;
+        }
+    } else {
+        x = 0.1; y = 0.1; z = 0.1;
+        const a = state.attractorA;
+        const b = state.attractorB;
+        const c = state.attractorC;
+        const d = state.attractorD;
+
+        for (let i = 0; i < pickoverCount; i++) {
+            let hx, hy, hz = 0;
+
+            if (state.fractalType === 'pickover') {
+                hx = Math.sin(a * y) - (state.is3D ? z * Math.cos(b * x) : Math.cos(b * x));
+                hy = (state.is3D ? z * Math.sin(c * x) : Math.sin(c * x)) - Math.cos(d * y);
+                hz = state.is3D ? Math.sin(x) : 0;
+            } else if (state.fractalType === 'dejong') {
+                hx = Math.sin(a * y) - Math.cos(b * x);
+                hy = Math.sin(c * x) - Math.cos(d * y);
+                hz = state.is3D ? Math.sin(a * x) : 0; 
+            } else if (state.fractalType === 'tinkerbell') {
+                hx = x*x - y*y + a*x + b*y;
+                hy = 2*x*y + c*x + d*y;
+                hz = state.is3D ? Math.sin(x*y) : 0; 
+            }
+
+            x = hx; y = hy; z = hz;
+
+            if (x > 100 || x < -100 || isNaN(x)) x = 0.1;
+            if (y > 100 || y < -100 || isNaN(y)) y = 0.1;
+
+            posAttr[i * 3] = x * s;
+            posAttr[i * 3 + 1] = y * s;
+            posAttr[i * 3 + 2] = z * s;
+
+            colAttr[i * 3] = Math.abs(x) / 2.0 + 0.5;
+            colAttr[i * 3 + 1] = Math.abs(y) / 2.0 + 0.5;
+            colAttr[i * 3 + 2] = Math.abs(z) / 2.0 + 0.5;
+        }
     }
 
     pickoverGeometry.attributes.position.needsUpdate = true;
@@ -449,23 +531,35 @@ function updateMathInfo() {
     switch (state.fractalType) {
         case 'mandelbulb':
             fractalName.textContent = 'Mandelbulb';
-            info = 'A 3D analog of the Mandelbrot set. Defined by: z = z^n + c, where n is the power.';
+            info = '<strong>Discovered by:</strong> Daniel White and Paul Nylander (2009)<br><br>A 3D analog of the Mandelbrot set. It is constructed by using spherical coordinates to raise a 3D vector to a power <em>n</em>. Defined by the iterative formula: <em>z = z^n + c</em>, where <em>n</em> is the power.';
             break;
         case 'julia':
             fractalName.textContent = 'Julia Set (3D)';
-            info = '3D slice of a quaternion Julia set. c = (' + state.juliaX.toFixed(2) + ', ' + state.juliaY.toFixed(2) + ')';
+            info = '<strong>First published by:</strong> Gaston Julia (1918)<br><br>While the original 2D sets were studied by Gaston Julia in 1918, this 3D version is a slice of a 4D quaternion Julia set. It explores the behavior of the complex quadratic polynomial: <em>z = z^2 + c</em> in 3D space, where <em>c</em> = (' + state.juliaX.toFixed(2) + ', ' + state.juliaY.toFixed(2) + ').';
             break;
         case 'menger':
             fractalName.textContent = 'Menger Sponge';
-            info = 'A 3D fractal curve. It is a universal curve, in that its topological dimension is one.';
+            info = '<strong>First published by:</strong> Karl Menger (1926)<br><br>A 3D fractal curve and a generalization of the Cantor set and Sierpinski carpet. It is a universal curve, meaning it has a topological dimension of one, yet its surface area is infinite and its volume is zero.';
             break;
         case 'sierpinski':
             fractalName.textContent = 'Sierpinski Tetrahedron';
-            info = 'Also known as the Tetrix. Formed by repeatedly replacing a tetrahedron with four smaller ones.';
+            info = '<strong>First published by:</strong> Wacław Sierpiński (1915)<br><br>Also known as the Tetrix. It is a 3D extension of the Sierpinski triangle, formed by repeatedly shrinking a regular tetrahedron to half its height, making four copies, and placing them at the corners.';
             break;
         case 'pickover':
             fractalName.textContent = 'Pickover Attractor';
-            info = 'A chaotic attractor defined by trigonometric recurrences. Formulas: x = sin(a*y) - z*cos(b*x), y = z*sin(c*x) - cos(d*y), z = sin(x).';
+            info = '<strong>First published by:</strong> Clifford A. Pickover (1990)<br><br>A chaotic strange attractor defined by complex trigonometric recurrences. This visualization calculates the point positions iteratively using the formulas: <br><em>x = sin(a*y) - z*cos(b*x)</em><br><em>y = z*sin(c*x) - cos(d*y)</em><br><em>z = sin(x)</em>';
+            break;
+        case 'dejong':
+            fractalName.textContent = 'Peter de Jong Attractor';
+            info = '<strong>Discovered by:</strong> Peter de Jong (1991)<br><br>A beautifully swirling chaotic map generated by evaluating sinusoidal equations. It produces organic, wispy shapes that resemble smoke or fluid dynamics.<br><br><em>x = sin(a*y) - cos(b*x)</em><br><em>y = sin(c*x) - cos(d*y)</em>';
+            break;
+        case 'tinkerbell':
+            fractalName.textContent = 'Tinkerbell Attractor';
+            info = '<strong>Origin:</strong> Term coined by Nusse and Yorke (1996)<br><br>A discrete-time dynamical system that resembles the path of a flying fairy. It features distinct swooping trajectories that fold in on themselves.<br><br><em>x = x² - y² + a*x + b*y</em><br><em>y = 2*x*y + c*x + d*y</em>';
+            break;
+        case 'lorenz':
+            fractalName.textContent = 'Lorenz Attractor';
+            info = '<strong>First published by:</strong> Edward Lorenz (1963)<br><br>Originally developed as a simplified mathematical model for atmospheric convection. It is a system of three ordinary differential equations and is notable for having chaotic solutions for certain parameter values, commonly looking like a butterfly.<br><br><em>dx/dt = σ(y - x)</em><br><em>dy/dt = x(ρ - z) - y</em><br><em>dz/dt = xy - βz</em>';
             break;
     }
     mathInfo.innerHTML = '<p>' + info + '</p>';
@@ -488,19 +582,31 @@ controls.dampingFactor = 0.05;
 controls.target.set(0, 0, 0);
 controls.update();
 
+function updateUIVisibility() {
+    const juliaControls = document.querySelector('.julia-controls');
+    juliaControls.style.display = state.fractalType === 'julia' ? 'block' : 'none';
+
+    const usesABCD = ['pickover', 'dejong', 'tinkerbell'].includes(state.fractalType);
+    const abcdControls = document.querySelector('.attractor-abcd-controls');
+    if (abcdControls) abcdControls.style.display = usesABCD ? 'block' : 'none';
+
+    const lorenzControls = document.querySelector('.lorenz-controls');
+    if (lorenzControls) lorenzControls.style.display = state.fractalType === 'lorenz' ? 'block' : 'none';
+
+    const isAttractor = ['pickover', 'dejong', 'tinkerbell', 'lorenz'].includes(state.fractalType);
+    const sharedControls = document.querySelector('.attractor-shared-controls');
+    if (sharedControls) sharedControls.style.display = isAttractor ? 'block' : 'none';
+
+    const powerControls = document.querySelector('.power-controls');
+    if (powerControls) powerControls.style.display = state.fractalType === 'mandelbulb' ? 'block' : 'none';
+}
+
 // Event listeners for controls
 document.getElementById('fractal-type').addEventListener('change', (e) => {
     state.fractalType = e.target.value;
     material.uniforms.fractalType.value = fractalTypeMap[state.fractalType];
 
-    const juliaControls = document.querySelector('.julia-controls');
-    juliaControls.style.display = state.fractalType === 'julia' ? 'block' : 'none';
-
-    const pickoverControls = document.querySelector('.pickover-controls');
-    pickoverControls.style.display = state.fractalType === 'pickover' ? 'block' : 'none';
-
-    const powerControls = document.querySelector('.power-controls');
-    if (powerControls) powerControls.style.display = state.fractalType === 'mandelbulb' ? 'block' : 'none';
+    updateUIVisibility();
 
     // Set optimal defaults for the selected fractal
     if (state.fractalType === 'mandelbulb') {
@@ -512,7 +618,13 @@ document.getElementById('fractal-type').addEventListener('change', (e) => {
     } else if (state.fractalType === 'sierpinski') {
         state.zoom = 1.5; state.iterations = 8;
     } else if (state.fractalType === 'pickover') {
-        state.zoom = 2.0; state.pickoverA = 1.0; state.pickoverB = 1.8; state.pickoverC = 0.7; state.pickoverD = 1.2;
+        state.zoom = 2.0; state.attractorA = 1.0; state.attractorB = 1.8; state.attractorC = 0.7; state.attractorD = 1.2; state.attractorScale = 1.0;
+    } else if (state.fractalType === 'dejong') {
+        state.zoom = 2.0; state.attractorA = -2.24; state.attractorB = 0.43; state.attractorC = -0.65; state.attractorD = -2.43; state.attractorScale = 1.5;
+    } else if (state.fractalType === 'tinkerbell') {
+        state.zoom = 2.0; state.attractorA = 0.9; state.attractorB = -0.6013; state.attractorC = 2.0; state.attractorD = 0.50; state.attractorScale = 2.5;
+    } else if (state.fractalType === 'lorenz') {
+        state.zoom = 2.0; state.lorenzSigma = 10.0; state.lorenzRho = 28.0; state.lorenzBeta = 2.67; state.attractorScale = 0.05;
     }
 
     // Update uniform values and UI
@@ -534,22 +646,35 @@ document.getElementById('fractal-type').addEventListener('change', (e) => {
         document.getElementById('julia-x-val').textContent = state.juliaX.toFixed(2);
         document.getElementById('julia-y').value = state.juliaY;
         document.getElementById('julia-y-val').textContent = state.juliaY.toFixed(2);
-    } else if (state.fractalType === 'pickover') {
-        document.getElementById('pickover-a').value = state.pickoverA;
-        document.getElementById('pickover-a-val').textContent = state.pickoverA.toFixed(2);
-        document.getElementById('pickover-b').value = state.pickoverB;
-        document.getElementById('pickover-b-val').textContent = state.pickoverB.toFixed(2);
-        document.getElementById('pickover-c').value = state.pickoverC;
-        document.getElementById('pickover-c-val').textContent = state.pickoverC.toFixed(2);
-        document.getElementById('pickover-d').value = state.pickoverD;
-        document.getElementById('pickover-d-val').textContent = state.pickoverD.toFixed(2);
+    } else if (['pickover', 'dejong', 'tinkerbell'].includes(state.fractalType)) {
+        document.getElementById('attractor-a').value = state.attractorA;
+        document.getElementById('attractor-a-val').textContent = state.attractorA.toFixed(2);
+        document.getElementById('attractor-b').value = state.attractorB;
+        document.getElementById('attractor-b-val').textContent = state.attractorB.toFixed(2);
+        document.getElementById('attractor-c').value = state.attractorC;
+        document.getElementById('attractor-c-val').textContent = state.attractorC.toFixed(2);
+        document.getElementById('attractor-d').value = state.attractorD;
+        document.getElementById('attractor-d-val').textContent = state.attractorD.toFixed(2);
+    } else if (state.fractalType === 'lorenz') {
+        document.getElementById('lorenz-sigma').value = state.lorenzSigma;
+        document.getElementById('lorenz-sigma-val').textContent = state.lorenzSigma.toFixed(1);
+        document.getElementById('lorenz-rho').value = state.lorenzRho;
+        document.getElementById('lorenz-rho-val').textContent = state.lorenzRho.toFixed(1);
+        document.getElementById('lorenz-beta').value = state.lorenzBeta;
+        document.getElementById('lorenz-beta-val').textContent = state.lorenzBeta.toFixed(2);
+    }
+    
+    if (['pickover', 'dejong', 'tinkerbell', 'lorenz'].includes(state.fractalType)) {
+        document.getElementById('attractor-scale').value = state.attractorScale;
+        document.getElementById('attractor-scale-val').textContent = state.attractorScale.toFixed(2);
     }
 
     // Show/Hide points vs raymarching quad
-    if (state.fractalType === 'pickover') {
+    const isAttractor = ['pickover', 'dejong', 'tinkerbell', 'lorenz'].includes(state.fractalType);
+    if (isAttractor) {
         pickoverPoints.visible = true;
         quad.visible = false;
-        updatePickoverPoints();
+        updateAttractorPoints();
     } else {
         pickoverPoints.visible = false;
         quad.visible = true;
@@ -592,35 +717,55 @@ document.getElementById('julia-y').addEventListener('input', (e) => {
     material.uniforms.juliaC.value.y = state.juliaY;
 });
 
-// Pickover Attractor listeners
-document.getElementById('pickover-a').addEventListener('input', (e) => {
-    state.pickoverA = parseFloat(e.target.value);
-    document.getElementById('pickover-a-val').textContent = state.pickoverA.toFixed(2);
-    if (state.fractalType === 'pickover') updatePickoverPoints();
+// Attractor ABCD listeners
+document.getElementById('attractor-a').addEventListener('input', (e) => {
+    state.attractorA = parseFloat(e.target.value);
+    document.getElementById('attractor-a-val').textContent = state.attractorA.toFixed(2);
+    if (['pickover', 'dejong', 'tinkerbell'].includes(state.fractalType)) updateAttractorPoints();
 });
 
-document.getElementById('pickover-b').addEventListener('input', (e) => {
-    state.pickoverB = parseFloat(e.target.value);
-    document.getElementById('pickover-b-val').textContent = state.pickoverB.toFixed(2);
-    if (state.fractalType === 'pickover') updatePickoverPoints();
+document.getElementById('attractor-b').addEventListener('input', (e) => {
+    state.attractorB = parseFloat(e.target.value);
+    document.getElementById('attractor-b-val').textContent = state.attractorB.toFixed(2);
+    if (['pickover', 'dejong', 'tinkerbell'].includes(state.fractalType)) updateAttractorPoints();
 });
 
-document.getElementById('pickover-c').addEventListener('input', (e) => {
-    state.pickoverC = parseFloat(e.target.value);
-    document.getElementById('pickover-c-val').textContent = state.pickoverC.toFixed(2);
-    if (state.fractalType === 'pickover') updatePickoverPoints();
+document.getElementById('attractor-c').addEventListener('input', (e) => {
+    state.attractorC = parseFloat(e.target.value);
+    document.getElementById('attractor-c-val').textContent = state.attractorC.toFixed(2);
+    if (['pickover', 'dejong', 'tinkerbell'].includes(state.fractalType)) updateAttractorPoints();
 });
 
-document.getElementById('pickover-d').addEventListener('input', (e) => {
-    state.pickoverD = parseFloat(e.target.value);
-    document.getElementById('pickover-d-val').textContent = state.pickoverD.toFixed(2);
-    if (state.fractalType === 'pickover') updatePickoverPoints();
+document.getElementById('attractor-d').addEventListener('input', (e) => {
+    state.attractorD = parseFloat(e.target.value);
+    document.getElementById('attractor-d-val').textContent = state.attractorD.toFixed(2);
+    if (['pickover', 'dejong', 'tinkerbell'].includes(state.fractalType)) updateAttractorPoints();
 });
 
-document.getElementById('pickover-scale').addEventListener('input', (e) => {
-    state.pickoverScale = parseFloat(e.target.value);
-    document.getElementById('pickover-scale-val').textContent = state.pickoverScale.toFixed(1);
-    if (state.fractalType === 'pickover') updatePickoverPoints();
+// Lorenz Listeners
+document.getElementById('lorenz-sigma').addEventListener('input', (e) => {
+    state.lorenzSigma = parseFloat(e.target.value);
+    document.getElementById('lorenz-sigma-val').textContent = state.lorenzSigma.toFixed(1);
+    if (state.fractalType === 'lorenz') updateAttractorPoints();
+});
+
+document.getElementById('lorenz-rho').addEventListener('input', (e) => {
+    state.lorenzRho = parseFloat(e.target.value);
+    document.getElementById('lorenz-rho-val').textContent = state.lorenzRho.toFixed(1);
+    if (state.fractalType === 'lorenz') updateAttractorPoints();
+});
+
+document.getElementById('lorenz-beta').addEventListener('input', (e) => {
+    state.lorenzBeta = parseFloat(e.target.value);
+    document.getElementById('lorenz-beta-val').textContent = state.lorenzBeta.toFixed(2);
+    if (state.fractalType === 'lorenz') updateAttractorPoints();
+});
+
+document.getElementById('attractor-scale').addEventListener('input', (e) => {
+    state.attractorScale = parseFloat(e.target.value);
+    document.getElementById('attractor-scale-val').textContent = state.attractorScale.toFixed(2);
+    const isAttractor = ['pickover', 'dejong', 'tinkerbell', 'lorenz'].includes(state.fractalType);
+    if (isAttractor) updateAttractorPoints();
 });
 
 document.getElementById('power').addEventListener('input', (e) => {
@@ -652,8 +797,9 @@ document.getElementById('toggle-view').addEventListener('click', () => {
         controls.enableRotate = true;
     }
 
-    if (state.fractalType === 'pickover') {
-        updatePickoverPoints();
+    const isAttractor = ['pickover', 'dejong', 'tinkerbell', 'lorenz'].includes(state.fractalType);
+    if (isAttractor) {
+        updateAttractorPoints();
     }
 });
 
@@ -664,11 +810,14 @@ document.getElementById('reset-params').addEventListener('click', () => {
     state.rotationSpeed = 0.3;
     state.juliaX = 0.3;
     state.juliaY = 0.5;
-    state.pickoverA = 1.0;
-    state.pickoverB = 1.8;
-    state.pickoverC = 0.7;
-    state.pickoverD = 1.2;
-    state.pickoverScale = 1.0;
+    state.attractorA = 1.0;
+    state.attractorB = 1.8;
+    state.attractorC = 0.7;
+    state.attractorD = 1.2;
+    state.attractorScale = 1.0;
+    state.lorenzSigma = 10.0;
+    state.lorenzRho = 28.0;
+    state.lorenzBeta = 2.67;
     state.is3D = true;
 
     // Reset UI
@@ -686,17 +835,23 @@ document.getElementById('reset-params').addEventListener('click', () => {
     document.getElementById('julia-y-val').textContent = '0.50';
     document.getElementById('toggle-view').textContent = 'Switch to 2D View';
 
-    // Pickover UI reset
-    document.getElementById('pickover-a').value = 1.0;
-    document.getElementById('pickover-a-val').textContent = '1.00';
-    document.getElementById('pickover-b').value = 1.8;
-    document.getElementById('pickover-b-val').textContent = '1.80';
-    document.getElementById('pickover-c').value = 0.7;
-    document.getElementById('pickover-c-val').textContent = '0.70';
-    document.getElementById('pickover-d').value = 1.2;
-    document.getElementById('pickover-d-val').textContent = '1.20';
-    document.getElementById('pickover-scale').value = 1.0;
-    document.getElementById('pickover-scale-val').textContent = '1.0';
+    document.getElementById('attractor-a').value = 1.0;
+    document.getElementById('attractor-a-val').textContent = '1.00';
+    document.getElementById('attractor-b').value = 1.8;
+    document.getElementById('attractor-b-val').textContent = '1.80';
+    document.getElementById('attractor-c').value = 0.7;
+    document.getElementById('attractor-c-val').textContent = '0.70';
+    document.getElementById('attractor-d').value = 1.2;
+    document.getElementById('attractor-d-val').textContent = '1.20';
+    document.getElementById('attractor-scale').value = 1.0;
+    document.getElementById('attractor-scale-val').textContent = '1.0';
+    
+    document.getElementById('lorenz-sigma').value = 10.0;
+    document.getElementById('lorenz-sigma-val').textContent = '10.0';
+    document.getElementById('lorenz-rho').value = 28.0;
+    document.getElementById('lorenz-rho-val').textContent = '28.0';
+    document.getElementById('lorenz-beta').value = 2.67;
+    document.getElementById('lorenz-beta-val').textContent = '2.67';
 
     // Reset uniforms
     material.uniforms.maxIterations.value = 8;
@@ -710,7 +865,42 @@ document.getElementById('reset-params').addEventListener('click', () => {
     controls.enableRotate = true;
     fractalMesh.rotation.set(0, 0, 0);
 
-    if (state.fractalType === 'pickover') updatePickoverPoints();
+    const isAttractor = ['pickover', 'dejong', 'tinkerbell', 'lorenz'].includes(state.fractalType);
+    if (isAttractor) updateAttractorPoints();
+});
+
+document.getElementById('particle-shape').addEventListener('change', (e) => {
+    pickoverMaterial.map = particleTextures[e.target.value];
+    pickoverMaterial.needsUpdate = true;
+});
+
+document.getElementById('fullscreen-btn').addEventListener('click', () => {
+    const container = document.getElementById('container');
+    if (!document.fullscreenElement) {
+        container.requestFullscreen().catch(err => {
+            console.warn(`Error attempting to enable fullscreen: ${err.message}`);
+        });
+    }
+});
+
+document.getElementById('exit-fullscreen-btn').addEventListener('click', () => {
+    if (document.exitFullscreen) {
+        document.exitFullscreen();
+    }
+});
+
+document.addEventListener('fullscreenchange', () => {
+    const panels = document.querySelectorAll('.panel');
+    const exitBtn = document.getElementById('exit-fullscreen-btn');
+    
+    if (document.fullscreenElement) {
+        panels.forEach(p => p.style.display = 'none');
+        exitBtn.style.display = 'block';
+    } else {
+        panels.forEach(p => p.style.display = 'block');
+        exitBtn.style.display = 'none';
+        updateUIVisibility();
+    }
 });
 
 // Initial math info

@@ -27,7 +27,10 @@
                     <option value="julia">Julia Set</option>
                     <option value="menger">Menger Sponge</option>
                     <option value="sierpinski">Sierpinski Tetrahedron</option>
-                    <option value="pickover">Pickover Fractal</option>
+                    <option value="pickover">Pickover Attractor</option>
+                    <option value="dejong">Peter de Jong Attractor</option>
+                    <option value="tinkerbell">Tinkerbell Attractor</option>
+                    <option value="lorenz">Lorenz Attractor</option>
                 </select>
             </div>
 
@@ -59,21 +62,41 @@
                 <input type="range" id="julia-y" min="-1" max="1" step="0.01" value="0.5">
             </div>
 
-            <div class="control-group pickover-controls" style="display: none;">
-                <label for="pickover-a">Input A: <span id="pickover-a-val">1.0</span></label>
-                <input type="range" id="pickover-a" min="-3" max="3" step="0.01" value="1.0">
+            <div class="control-group attractor-abcd-controls" style="display: none;">
+                <label for="attractor-a">Input A: <span id="attractor-a-val">1.0</span></label>
+                <input type="range" id="attractor-a" min="-3" max="3" step="0.01" value="1.0">
 
-                <label for="pickover-b">Input B: <span id="pickover-b-val">1.8</span></label>
-                <input type="range" id="pickover-b" min="-3" max="3" step="0.01" value="1.8">
+                <label for="attractor-b">Input B: <span id="attractor-b-val">1.8</span></label>
+                <input type="range" id="attractor-b" min="-3" max="3" step="0.01" value="1.8">
 
-                <label for="pickover-c">Input C: <span id="pickover-c-val">0.7</span></label>
-                <input type="range" id="pickover-c" min="-3" max="3" step="0.01" value="0.7">
+                <label for="attractor-c">Input C: <span id="attractor-c-val">0.7</span></label>
+                <input type="range" id="attractor-c" min="-3" max="3" step="0.01" value="0.7">
 
-                <label for="pickover-d">Input D: <span id="pickover-d-val">1.2</span></label>
-                <input type="range" id="pickover-d" min="-3" max="3" step="0.01" value="1.2">
+                <label for="attractor-d">Input D: <span id="attractor-d-val">1.2</span></label>
+                <input type="range" id="attractor-d" min="-3" max="3" step="0.01" value="1.2">
+            </div>
 
-                <label for="pickover-scale">Scale: <span id="pickover-scale-val">1.0</span></label>
-                <input type="range" id="pickover-scale" min="0.1" max="10.0" step="0.1" value="1.0">
+            <div class="control-group lorenz-controls" style="display: none;">
+                <label for="lorenz-sigma">Sigma: <span id="lorenz-sigma-val">10.0</span></label>
+                <input type="range" id="lorenz-sigma" min="1" max="30" step="0.1" value="10.0">
+
+                <label for="lorenz-rho">Rho: <span id="lorenz-rho-val">28.0</span></label>
+                <input type="range" id="lorenz-rho" min="1" max="50" step="0.1" value="28.0">
+
+                <label for="lorenz-beta">Beta: <span id="lorenz-beta-val">2.67</span></label>
+                <input type="range" id="lorenz-beta" min="0.1" max="10" step="0.01" value="2.67">
+            </div>
+
+            <div class="control-group attractor-shared-controls" style="display: none;">
+                <label for="attractor-scale">Scale: <span id="attractor-scale-val">1.0</span></label>
+                <input type="range" id="attractor-scale" min="0.01" max="10.0" step="0.01" value="1.0">
+                
+                <label for="particle-shape" style="margin-top: 10px;">Particle Shape:</label>
+                <select id="particle-shape">
+                    <option value="square">Square</option>
+                    <option value="circle">Circle</option>
+                    <option value="diamond">Diamond</option>
+                </select>
             </div>
 
             <div class="control-group power-controls">
@@ -89,9 +112,15 @@
             <div class="control-group">
                 <button id="toggle-view">Switch to 2D View</button>
             </div>
+            
+            <div class="control-group" style="border-bottom: none; padding-bottom: 0; margin-bottom: 0;">
+                <button id="fullscreen-btn">Enter Fullscreen</button>
+            </div>
 
             <button id="reset-params">Reset Parameters</button>
         </div>
+        
+        <button id="exit-fullscreen-btn" style="display: none;">Exit Fullscreen</button>
     </div>
 
     <!-- Three.js from CDN -->

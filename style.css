@@ -159,7 +159,7 @@ body {
     transition: transform 0.2s, box-shadow 0.2s;
 }
 
-#toggle-view {
+#toggle-view, #fullscreen-btn {
     width: 100%;
     padding: 10px;
     border: 1px solid rgba(100, 100, 200, 0.5);
@@ -172,7 +172,7 @@ body {
     transition: all 0.2s;
 }
 
-#toggle-view:hover {
+#toggle-view:hover, #fullscreen-btn:hover {
     background: rgba(100, 100, 200, 0.2);
     border-color: #6366f1;
     transform: translateY(-1px);
@@ -185,6 +185,30 @@ body {
 
 #reset-params:active {
     transform: translateY(0);
+}
+
+#exit-fullscreen-btn {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 12px 24px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 30px;
+    background: rgba(20, 20, 40, 0.8);
+    color: #fff;
+    font-size: 1em;
+    font-weight: 600;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+    transition: all 0.2s;
+    z-index: 1000;
+}
+
+#exit-fullscreen-btn:hover {
+    background: rgba(40, 40, 60, 0.9);
+    border-color: #fff;
 }
 
 /* Scrollbar styling */

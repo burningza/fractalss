@@ -8,8 +8,17 @@ This is a static web application. To run it locally, you need to serve the files
 
 You can use any local development server. Here are a few common options:
 
-### Using Python
-If you have Python installed, open your terminal in the project root directory and run:
+### Recommended: Using the custom Dev Server (Fixes Windows MIME issues)
+If you are on Windows and encounter a "MIME type" error, use the provided `dev-server.py` script:
+
+```bash
+python dev-server.py
+```
+
+Then open [http://localhost:8000](http://localhost:8000) in your web browser.
+
+### Alternative: Using Python
+If you don't want to use the script, you can try the standard module:
 
 ```bash
 # Python 3
