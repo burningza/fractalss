@@ -19,7 +19,8 @@ const state = {
     pickoverB: 1.8,
     pickoverC: 0.7,
     pickoverD: 1.2,
-    pickoverScale: 1.0
+    pickoverScale: 1.0,
+    is3D: true
 };
 
 // Map fractal types to shader integers
@@ -420,9 +421,9 @@ function updatePickoverPoints() {
     const colAttr = pickoverGeometry.attributes.color.array;
 
     for (let i = 0; i < pickoverCount; i++) {
-        const hx = Math.sin(a * y) - z * Math.cos(b * x);
-        const hy = z * Math.sin(c * x) - Math.cos(d * y);
-        const hz = Math.sin(x);
+        const hx = Math.sin(a * y) - (state.is3D ? z * Math.cos(b * x) : Math.cos(b * x));
+        const hy = (state.is3D ? z * Math.sin(c * x) : Math.sin(c * x)) - Math.cos(d * y);
+        const hz = state.is3D ? Math.sin(x) : 0;
 
         x = hx; y = hy; z = hz;
 
@@ -633,6 +634,29 @@ document.getElementById('rotation-speed').addEventListener('input', (e) => {
     document.getElementById('rotation-val').textContent = state.rotationSpeed.toFixed(1);
 });
 
+document.getElementById('toggle-view').addEventListener('click', () => {
+    state.is3D = !state.is3D;
+    const btn = document.getElementById('toggle-view');
+    btn.textContent = state.is3D ? 'Switch to 2D View' : 'Switch to 3D View';
+
+    if (!state.is3D) {
+        // Reset camera for 2D view
+        camera.position.set(0, 0, -3);
+        camera.lookAt(0, 0, 0);
+        controls.enableRotate = false;
+        fractalMesh.rotation.set(0, 0, 0);
+        state.rotationSpeed = 0;
+        document.getElementById('rotation-speed').value = 0;
+        document.getElementById('rotation-val').textContent = '0.0';
+    } else {
+        controls.enableRotate = true;
+    }
+
+    if (state.fractalType === 'pickover') {
+        updatePickoverPoints();
+    }
+});
+
 document.getElementById('reset-params').addEventListener('click', () => {
     state.iterations = 8;
     state.zoom = 2.0;
@@ -645,6 +669,7 @@ document.getElementById('reset-params').addEventListener('click', () => {
     state.pickoverC = 0.7;
     state.pickoverD = 1.2;
     state.pickoverScale = 1.0;
+    state.is3D = true;
 
     // Reset UI
     document.getElementById('iterations').value = 8;
@@ -659,6 +684,7 @@ document.getElementById('reset-params').addEventListener('click', () => {
     document.getElementById('julia-x-val').textContent = '0.30';
     document.getElementById('julia-y').value = 0.5;
     document.getElementById('julia-y-val').textContent = '0.50';
+    document.getElementById('toggle-view').textContent = 'Switch to 2D View';
 
     // Pickover UI reset
     document.getElementById('pickover-a').value = 1.0;
@@ -677,6 +703,12 @@ document.getElementById('reset-params').addEventListener('click', () => {
     material.uniforms.zoom.value = 2.0;
     material.uniforms.power.value = 8;
     material.uniforms.juliaC.value.set(0.3, 0.5);
+
+    // Reset camera and controls
+    camera.position.set(0, 0, -3);
+    camera.lookAt(0, 0, 0);
+    controls.enableRotate = true;
+    fractalMesh.rotation.set(0, 0, 0);
 
     if (state.fractalType === 'pickover') updatePickoverPoints();
 });
