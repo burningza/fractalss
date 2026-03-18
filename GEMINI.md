@@ -19,13 +19,13 @@ posY = HypY;
 
 ## Implementation Goals
 - [x] Document project context and Pickover formula.
-- [ ] Implement the **Pickover Fractal** in the web-based explorer.
-- [ ] Add interactive controls for Pickover parameters (`InputA`, `InputB`, `InputC`, `InputD`, `FractalScale`).
-- [ ] Support both ray-marching (SDF) and point-based (Attractor) rendering.
+- [x] Implement the **Pickover Fractal** in the web-based explorer.
+- [x] Add interactive controls for Pickover parameters (`InputA`, `InputB`, `InputC`, `InputD`, `FractalScale`).
+- [x] Support both ray-marching (SDF) and point-based (Attractor) rendering.
 
 ## Current Supported Fractals
 - Mandelbulb
 - Julia Set
 - Menger Sponge
 - Sierpinski Tetrahedron
-- **Pickover (Coming Soon)**
+- **Pickover**

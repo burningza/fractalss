@@ -4,7 +4,15 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // ============================================
 // Configuration State
 // ============================================
-const state = {
+
+let savedFractalSettings = {};
+try {
+    savedFractalSettings = JSON.parse(localStorage.getItem('fractalSettings')) || {};
+} catch (e) {
+    console.warn("Could not load fractalSettings from localStorage", e);
+}
+
+const defaultState = {
     fractalType: 'mandelbulb',
     iterations: 8,
     zoom: 2.0,
@@ -13,6 +21,7 @@ const state = {
     juliaY: 0.5,
     power: 8,
     rotationSpeed: 0.3,
+    rotationSpeedX: 0.0,
     time: 0,
     // Attractor parameters
     attractorA: 1.0,
@@ -23,8 +32,20 @@ const state = {
     lorenzSigma: 10.0,
     lorenzRho: 28.0,
     lorenzBeta: 2.67,
-    is3D: true
+    is3D: true,
+    fractalize: 1.0
 };
+
+const state = { ...defaultState, ...(savedFractalSettings['mandelbulb'] || {}) };
+
+function saveCurrentSettings() {
+    savedFractalSettings[state.fractalType] = { ...state };
+    try {
+        localStorage.setItem('fractalSettings', JSON.stringify(savedFractalSettings));
+    } catch (e) {
+        console.warn("Could not save to localStorage", e);
+    }
+}
 
 // Map fractal types to shader integers
 const fractalTypeMap = {
@@ -87,6 +108,7 @@ const fractalFragmentShader = `
     uniform float power;
     uniform int colorScheme;
     uniform float fov;
+    uniform float fractalize;
 
     varying vec2 vUv;
 
@@ -178,7 +200,8 @@ const fractalFragmentShader = `
             z = newZ + c;
         }
 
-        return length(z) / dr;
+        float r = length(z);
+        return 0.5 * log(r) * r / dr;
     }
 
     // Menger Sponge
@@ -229,14 +252,39 @@ const fractalFragmentShader = `
         return length(pos) - 1.0; 
     }
 
+    // Base Shapes
+    float sdBox(vec3 p, vec3 b) {
+        vec3 q = abs(p) - b;
+        return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
+    }
+
+    float sdTetrahedron(vec3 p) {
+        return (max(abs(p.x+p.y)-p.z, abs(p.x-p.y)+p.z) - 1.0) / sqrt(3.0);
+    }
+
     float getDistance(vec3 pos) {
         pos *= zoom;
-        float d = mandelbulbDE(pos);
-        if (fractalType == 0) d = mandelbulbDE(pos);
-        else if (fractalType == 1) d = juliaDE(pos);
-        else if (fractalType == 2) d = mengerDE(pos);
-        else if (fractalType == 3) d = sierpinskiDE(pos);
-        else if (fractalType == 4) d = pickoverDE(pos);
+        float d = 0.0;
+        float dBase = 0.0;
+
+        if (fractalType == 0) {
+            d = mandelbulbDE(pos);
+            dBase = length(pos) - 1.2;
+        } else if (fractalType == 1) {
+            d = juliaDE(pos);
+            dBase = length(pos) - 1.2;
+        } else if (fractalType == 2) {
+            d = mengerDE(pos);
+            dBase = sdBox(pos, vec3(1.0));
+        } else if (fractalType == 3) {
+            d = sierpinskiDE(pos);
+            dBase = sdTetrahedron(pos);
+        } else if (fractalType == 4) {
+            d = pickoverDE(pos);
+            dBase = d;
+        }
+        
+        d = mix(dBase, d, fractalize);
         
         return d / zoom;
     }
@@ -380,7 +428,8 @@ const material = new THREE.ShaderMaterial({
         juliaC: { value: new THREE.Vector2(state.juliaX, state.juliaY) },
         power: { value: state.power },
         colorScheme: { value: colorSchemeMap[state.colorScheme] },
-        fov: { value: Math.PI / 4 }
+        fov: { value: Math.PI / 4 },
+        fractalize: { value: state.fractalize }
     },
     depthWrite: false,
     depthTest: false
@@ -586,6 +635,9 @@ function updateUIVisibility() {
     const juliaControls = document.querySelector('.julia-controls');
     juliaControls.style.display = state.fractalType === 'julia' ? 'block' : 'none';
 
+    const raymarchControls = document.querySelector('.raymarch-controls');
+    if (raymarchControls) raymarchControls.style.display = ['mandelbulb', 'julia', 'menger', 'sierpinski'].includes(state.fractalType) ? 'block' : 'none';
+
     const usesABCD = ['pickover', 'dejong', 'tinkerbell'].includes(state.fractalType);
     const abcdControls = document.querySelector('.attractor-abcd-controls');
     if (abcdControls) abcdControls.style.display = usesABCD ? 'block' : 'none';
@@ -602,29 +654,40 @@ function updateUIVisibility() {
 }
 
 // Event listeners for controls
+const controlsPanel = document.getElementById('controls-panel');
+if (controlsPanel) {
+    controlsPanel.addEventListener('input', () => saveCurrentSettings());
+    controlsPanel.addEventListener('change', () => saveCurrentSettings());
+}
+
 document.getElementById('fractal-type').addEventListener('change', (e) => {
     state.fractalType = e.target.value;
     material.uniforms.fractalType.value = fractalTypeMap[state.fractalType];
 
     updateUIVisibility();
 
-    // Set optimal defaults for the selected fractal
-    if (state.fractalType === 'mandelbulb') {
-        state.zoom = 2.0; state.power = 8; state.iterations = 8;
-    } else if (state.fractalType === 'julia') {
-        state.zoom = 2.0; state.juliaX = 0.3; state.juliaY = 0.5; state.iterations = 8;
-    } else if (state.fractalType === 'menger') {
-        state.zoom = 1.0; state.iterations = 5;
-    } else if (state.fractalType === 'sierpinski') {
-        state.zoom = 1.5; state.iterations = 8;
-    } else if (state.fractalType === 'pickover') {
-        state.zoom = 2.0; state.attractorA = 1.0; state.attractorB = 1.8; state.attractorC = 0.7; state.attractorD = 1.2; state.attractorScale = 1.0;
-    } else if (state.fractalType === 'dejong') {
-        state.zoom = 2.0; state.attractorA = -2.24; state.attractorB = 0.43; state.attractorC = -0.65; state.attractorD = -2.43; state.attractorScale = 1.5;
-    } else if (state.fractalType === 'tinkerbell') {
-        state.zoom = 2.0; state.attractorA = 0.9; state.attractorB = -0.6013; state.attractorC = 2.0; state.attractorD = 0.50; state.attractorScale = 2.5;
-    } else if (state.fractalType === 'lorenz') {
-        state.zoom = 2.0; state.lorenzSigma = 10.0; state.lorenzRho = 28.0; state.lorenzBeta = 2.67; state.attractorScale = 0.05;
+    // Set optimal defaults or load saved settings for the selected fractal
+    if (savedFractalSettings[state.fractalType]) {
+        Object.assign(state, savedFractalSettings[state.fractalType]);
+    } else {
+        if (state.fractalType === 'mandelbulb') {
+            state.zoom = 2.0; state.power = 8; state.iterations = 8;
+        } else if (state.fractalType === 'julia') {
+            state.zoom = 2.0; state.juliaX = 0.3; state.juliaY = 0.5; state.iterations = 8;
+        } else if (state.fractalType === 'menger') {
+            state.zoom = 1.0; state.iterations = 5;
+        } else if (state.fractalType === 'sierpinski') {
+            state.zoom = 1.5; state.iterations = 8;
+        } else if (state.fractalType === 'pickover') {
+            state.zoom = 2.0; state.attractorA = 1.0; state.attractorB = 1.8; state.attractorC = 0.7; state.attractorD = 1.2; state.attractorScale = 1.0;
+        } else if (state.fractalType === 'dejong') {
+            state.zoom = 2.0; state.attractorA = -2.24; state.attractorB = 0.43; state.attractorC = -0.65; state.attractorD = -2.43; state.attractorScale = 1.5;
+        } else if (state.fractalType === 'tinkerbell') {
+            state.zoom = 2.0; state.attractorA = 0.9; state.attractorB = -0.6013; state.attractorC = 2.0; state.attractorD = 0.50; state.attractorScale = 2.5;
+        } else if (state.fractalType === 'lorenz') {
+            state.zoom = 2.0; state.lorenzSigma = 10.0; state.lorenzRho = 28.0; state.lorenzBeta = 2.67; state.attractorScale = 0.05;
+        }
+        saveCurrentSettings();
     }
 
     // Update uniform values and UI
@@ -693,6 +756,12 @@ document.getElementById('zoom').addEventListener('input', (e) => {
     state.zoom = parseFloat(e.target.value);
     document.getElementById('zoom-val').textContent = state.zoom.toFixed(1);
     material.uniforms.zoom.value = state.zoom;
+});
+
+document.getElementById('fractalize').addEventListener('input', (e) => {
+    state.fractalize = parseFloat(e.target.value);
+    document.getElementById('fractalize-val').textContent = state.fractalize.toFixed(2);
+    material.uniforms.fractalize.value = state.fractalize;
 });
 
 document.getElementById('color-scheme').addEventListener('change', (e) => {
@@ -779,6 +848,11 @@ document.getElementById('rotation-speed').addEventListener('input', (e) => {
     document.getElementById('rotation-val').textContent = state.rotationSpeed.toFixed(1);
 });
 
+document.getElementById('rotation-speed-x').addEventListener('input', (e) => {
+    state.rotationSpeedX = parseFloat(e.target.value);
+    document.getElementById('rotation-x-val').textContent = state.rotationSpeedX.toFixed(1);
+});
+
 document.getElementById('toggle-view').addEventListener('click', () => {
     state.is3D = !state.is3D;
     const btn = document.getElementById('toggle-view');
@@ -791,8 +865,11 @@ document.getElementById('toggle-view').addEventListener('click', () => {
         controls.enableRotate = false;
         fractalMesh.rotation.set(0, 0, 0);
         state.rotationSpeed = 0;
+        state.rotationSpeedX = 0;
         document.getElementById('rotation-speed').value = 0;
         document.getElementById('rotation-val').textContent = '0.0';
+        document.getElementById('rotation-speed-x').value = 0;
+        document.getElementById('rotation-x-val').textContent = '0.0';
     } else {
         controls.enableRotate = true;
     }
@@ -801,34 +878,53 @@ document.getElementById('toggle-view').addEventListener('click', () => {
     if (isAttractor) {
         updateAttractorPoints();
     }
+    
+    saveCurrentSettings();
 });
 
 document.getElementById('reset-params').addEventListener('click', () => {
-    state.iterations = 8;
-    state.zoom = 2.0;
-    state.power = 8;
-    state.rotationSpeed = 0.3;
-    state.juliaX = 0.3;
-    state.juliaY = 0.5;
-    state.attractorA = 1.0;
-    state.attractorB = 1.8;
-    state.attractorC = 0.7;
-    state.attractorD = 1.2;
-    state.attractorScale = 1.0;
-    state.lorenzSigma = 10.0;
-    state.lorenzRho = 28.0;
-    state.lorenzBeta = 2.67;
-    state.is3D = true;
+    // Delete saved settings for this fractal
+    delete savedFractalSettings[state.fractalType];
+    try {
+        localStorage.setItem('fractalSettings', JSON.stringify(savedFractalSettings));
+    } catch (e) {
+        // ignore
+    }
+
+    Object.assign(state, defaultState);
+
+    // Apply specific defaults for current fractal type to ensure it resets properly
+    if (state.fractalType === 'mandelbulb') {
+        state.zoom = 2.0; state.power = 8; state.iterations = 8;
+    } else if (state.fractalType === 'julia') {
+        state.zoom = 2.0; state.juliaX = 0.3; state.juliaY = 0.5; state.iterations = 8;
+    } else if (state.fractalType === 'menger') {
+        state.zoom = 1.0; state.iterations = 5;
+    } else if (state.fractalType === 'sierpinski') {
+        state.zoom = 1.5; state.iterations = 8;
+    } else if (state.fractalType === 'pickover') {
+        state.zoom = 2.0; state.attractorA = 1.0; state.attractorB = 1.8; state.attractorC = 0.7; state.attractorD = 1.2; state.attractorScale = 1.0;
+    } else if (state.fractalType === 'dejong') {
+        state.zoom = 2.0; state.attractorA = -2.24; state.attractorB = 0.43; state.attractorC = -0.65; state.attractorD = -2.43; state.attractorScale = 1.5;
+    } else if (state.fractalType === 'tinkerbell') {
+        state.zoom = 2.0; state.attractorA = 0.9; state.attractorB = -0.6013; state.attractorC = 2.0; state.attractorD = 0.50; state.attractorScale = 2.5;
+    } else if (state.fractalType === 'lorenz') {
+        state.zoom = 2.0; state.lorenzSigma = 10.0; state.lorenzRho = 28.0; state.lorenzBeta = 2.67; state.attractorScale = 0.05;
+    }
 
     // Reset UI
-    document.getElementById('iterations').value = 8;
+    document.getElementById('iterations').value = state.iterations;
     document.getElementById('iter-val').textContent = '8';
     document.getElementById('zoom').value = 2.0;
     document.getElementById('zoom-val').textContent = '2.0';
+    document.getElementById('fractalize').value = 1.0;
+    document.getElementById('fractalize-val').textContent = '1.00';
     document.getElementById('power').value = 8;
     document.getElementById('power-val').textContent = '8';
     document.getElementById('rotation-speed').value = 0.3;
     document.getElementById('rotation-val').textContent = '0.3';
+    document.getElementById('rotation-speed-x').value = 0.0;
+    document.getElementById('rotation-x-val').textContent = '0.0';
     document.getElementById('julia-x').value = 0.3;
     document.getElementById('julia-x-val').textContent = '0.30';
     document.getElementById('julia-y').value = 0.5;
@@ -858,6 +954,7 @@ document.getElementById('reset-params').addEventListener('click', () => {
     material.uniforms.zoom.value = 2.0;
     material.uniforms.power.value = 8;
     material.uniforms.juliaC.value.set(0.3, 0.5);
+    material.uniforms.fractalize.value = 1.0;
 
     // Reset camera and controls
     camera.position.set(0, 0, -3);
@@ -903,8 +1000,9 @@ document.addEventListener('fullscreenchange', () => {
     }
 });
 
-// Initial math info
-updateMathInfo();
+// Initialize UI to match state
+document.getElementById('fractal-type').value = state.fractalType;
+document.getElementById('fractal-type').dispatchEvent(new Event('change'));
 
 // ============================================
 // Responsive Canvas
@@ -930,8 +1028,11 @@ function animate() {
     material.uniforms.cameraRotation.value.copy(rotMatrix);
 
     // Auto-rotation
-    if (state.rotationSpeed > 0) {
+    if (state.rotationSpeed !== 0) {
         fractalMesh.rotation.y += state.rotationSpeed * 0.01;
+    }
+    if (state.rotationSpeedX !== 0) {
+        fractalMesh.rotation.x += state.rotationSpeedX * 0.01;
     }
 
     controls.update();
